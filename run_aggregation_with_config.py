@@ -13,6 +13,7 @@ src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 from patient_aggregator import aggregate_patients
+from patient_aggregator.visualizer import visualize_aggregated_data
 
 
 def main():
@@ -33,6 +34,9 @@ Examples:
   
   # Specify both
   python run_aggregation_with_config.py --data-dir ./my_data --config custom_config.yaml --output results.csv
+  
+  # Skip visualizations
+  python run_aggregation_with_config.py --no-plots
         """
     )
     
@@ -55,6 +59,12 @@ Examples:
         type=str,
         default="aggregated_patients.csv",
         help="Output CSV file path (default: aggregated_patients.csv)"
+    )
+    
+    parser.add_argument(
+        "--no-plots",
+        action="store_true",
+        help="Skip generating visualizations"
     )
     
     args = parser.parse_args()
@@ -118,6 +128,15 @@ Examples:
             config_path=str(config_path) if config_path else None
         )
         print(f"✓ Success! Results saved to {output_file}")
+        
+        # Generate visualizations
+        if not args.no_plots:
+            try:
+                visualize_aggregated_data(str(output_file))
+            except Exception as e:
+                print(f"\n⚠ Warning: Could not generate visualizations: {e}")
+                print("Aggregation completed successfully, but visualizations were skipped.")
+        
         return 0
     except Exception as e:
         print(f"❌ Error: {e}")

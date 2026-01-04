@@ -42,3 +42,8 @@ htmlcov/
 *.csv
 !sample_data/*.csv
 
+# Visualization outputs
+plots/
+*.png
+!sample_data/*.png
+

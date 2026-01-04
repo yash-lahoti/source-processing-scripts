@@ -13,6 +13,7 @@ src_path = project_root / "src"
 sys.path.insert(0, str(src_path))
 
 from patient_aggregator import aggregate_patients
+from patient_aggregator.visualizer import visualize_aggregated_data
 
 
 def find_data_directory():
@@ -64,6 +65,12 @@ def scan_data_directory(data_dir):
 
 def main():
     """Main function to run aggregation."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Aggregate patient data and generate visualizations")
+    parser.add_argument("--no-plots", action="store_true", help="Skip generating visualizations")
+    args = parser.parse_args()
+    
     print("=" * 60)
     print("Patient Data Aggregation Script")
     print("=" * 60)
@@ -130,6 +137,14 @@ def main():
             print("Columns:", ", ".join(df.columns.tolist()))
         except Exception as e:
             print(f"Note: Could not read output file for summary: {e}")
+        
+        # Generate visualizations
+        if not args.no_plots:
+            try:
+                visualize_aggregated_data(str(output_file))
+            except Exception as e:
+                print(f"\n⚠ Warning: Could not generate visualizations: {e}")
+                print("Aggregation completed successfully, but visualizations were skipped.")
         
         return 0
         

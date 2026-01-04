@@ -1,46 +1,174 @@
-"""Script to generate sample Excel files for testing."""
+"""Script to generate sample Excel files for testing with 50 patients."""
 import pandas as pd
+import numpy as np
+import uuid
 from pathlib import Path
+from datetime import datetime, timedelta
+import random
 
-# Sample data
+# Set random seed for reproducibility
+np.random.seed(42)
+random.seed(42)
+
+# Generate 50 unique patients
+NUM_PATIENTS = 50
+
+# Severity options
+SEVERITY_OPTIONS = ["mild", "moderate", "severe"]
+SEVERITY_WEIGHTS = [0.2, 0.6, 0.2]  # More moderate cases
+
+# ICD codes
+ICD_CODES = {
+    "H40.1192": "Primary open-angle glaucoma, unspecified eye, moderate stage",
+    "H40.1193": "Primary open-angle glaucoma, unspecified eye, severe stage",
+    "H40.1190": "Primary open-angle glaucoma, unspecified eye, mild stage",
+    "H40.1191": "Primary open-angle glaucoma, unspecified eye, mild stage",
+    "H40.1194": "Primary open-angle glaucoma, unspecified eye, severe stage",
+}
+
+# Generate patient UIDs and basic info
+patient_uids = [str(uuid.uuid4()) for _ in range(NUM_PATIENTS)]
+client_ids = np.random.choice([1, 20, 30, 40], size=NUM_PATIENTS, p=[0.4, 0.3, 0.2, 0.1])
+site_ids = np.random.choice([218223, 218224, 218225, 218226], size=NUM_PATIENTS)
+
+# Generate encrypted MRNs (simplified)
+def generate_mrn():
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/="
+    return ''.join(random.choice(chars) for _ in range(40)) + "="
+
+pat_mrns = [generate_mrn() for _ in range(NUM_PATIENTS)]
+
+# Generate first diagnosis dates (2010-2020)
+start_date = datetime(2010, 1, 1)
+end_date = datetime(2020, 12, 31)
+date_range = (end_date - start_date).days
+first_diagnosis_dates = [
+    (start_date + timedelta(days=random.randint(0, date_range))).strftime("%m/%d/%Y")
+    for _ in range(NUM_PATIENTS)
+]
+
+# Cohort data
 cohort_data = {
-    "client_id": [1, 1, 20],
-    "site_id": [218223, 218223, 218224],
-    "pat_mrn": ["+++mWO1THf5/6ZwZUuTeJr5Yh5LiZii9HfLvQsG+WwA=", "a1Socasd/tzITdgt1g1J01E8InQp4DqjMkSWdq3FtbU=", "ddvvtiarzx5xs6MfJYi9F3WuDELs8JxNWahmY4EUGDE="],
-    "patient_uid": ["ab3e9f17-75d5-4d7d-9867-ab476d64c6ac", "e61e649d-1078-4d9d-b5b6-cd609e8c1b11", "ff2d2be2-abac-47c6-a984-d322ec1215d5"],
-    "first_POAG_diagnosis": ["11/1/2013", "8/3/2019", "9/30/2016"]
+    "client_id": client_ids.tolist(),
+    "site_id": site_ids.tolist(),
+    "pat_mrn": pat_mrns,
+    "patient_uid": patient_uids,
+    "first_POAG_diagnosis": first_diagnosis_dates
 }
 
-iop_data = {
-    "client_id": [1, 1, 1],
-    "site_id": [218223, 218223, 218223],
-    "pat_mrn": ["+++mWO1THf5/6ZwZUuTeJr5Yh5LiZii9HfLvQsG+WwA=", "+++mWO1THf5/6ZwZUuTeJr5Yh5LiZii9HfLvQsG+WwA=", "a1Socasd/tzITdgt1g1J01E8InQp4DqjMkSWdq3FtbU="],
-    "patient_uid": ["ab3e9f17-75d5-4d7d-9867-ab476d64c6ac", "ab3e9f17-75d5-4d7d-9867-ab476d64c6ac", "e61e649d-1078-4d9d-b5b6-cd609e8c1b11"],
-    "first_POAG_diagnosis": ["11/1/2013", "11/1/2013", "8/3/2019"],
-    "PAT_ENC_CSN_ID": ["7/XgB7dD/RHuQbnx3+/wUpE19JFvFS1YaB6rxRdhVDA=", "8/YhC8eE/SIvRcoy4+/xVqF20KGwGT2ZbC7sySeiWEB=", "9/ZiD9fF/TJwSdpz5+/yWrG31LHxHU3acD8tzTfjXFC="],
-    "CONTACT_DATE": ["7/25/2013", "8/15/2013", "9/10/2019"],
-    "os_iop": [18, 19, 20],
-    "od_iop": [21, 22, 23]
-}
+# Generate IOP data with varied measurement counts
+iop_records = []
+for i, uid in enumerate(patient_uids):
+    # Varied measurement counts: most have 2-4, some have 1, few have 5+
+    num_measurements = np.random.choice([1, 2, 3, 4, 5, 6], p=[0.1, 0.3, 0.3, 0.2, 0.05, 0.05])
+    
+    base_date = datetime.strptime(first_diagnosis_dates[i], "%m/%d/%Y")
+    
+    for j in range(num_measurements):
+        # Dates after first diagnosis
+        days_after = random.randint(0, 365 * 3)  # Up to 3 years after diagnosis
+        contact_date = (base_date + timedelta(days=days_after)).strftime("%m/%d/%Y")
+        
+        # Generate encounter ID
+        enc_id = generate_mrn()
+        
+        # Realistic IOP values: 10-30 mmHg
+        os_iop = np.random.normal(18, 4)
+        os_iop = max(10, min(30, int(os_iop)))
+        
+        od_iop = np.random.normal(20, 4)
+        od_iop = max(10, min(30, int(od_iop)))
+        
+        iop_records.append({
+            "client_id": client_ids[i],
+            "site_id": site_ids[i],
+            "pat_mrn": pat_mrns[i],
+            "patient_uid": uid,
+            "first_POAG_diagnosis": first_diagnosis_dates[i],
+            "PAT_ENC_CSN_ID": enc_id,
+            "CONTACT_DATE": contact_date,
+            "os_iop": os_iop,
+            "od_iop": od_iop
+        })
 
-diagnosis_data = {
-    "pat_mrn": ["ddvvtiarzx5xs6MfJYi9F3WuDELs8JxNWahmY4EUGDE=", "a1Socasd/tzITdgt1g1J01E8InQp4DqjMkSWdq3FtbU=", "a1Socasd/tzITdgt1g1J01E8InQp4DqjMkSWdq3FtbU=", "CBcvguQI8jH5RnguL8Pev11E0Iou+Q9B7/NTrTV1jYY="],
-    "POAG_dx_date": ["9/30/2016", "8/3/2019", "1/12/2019", "12/27/2018"],
-    "patient_uid": ["ff2d2be2-abac-47c6-a984-d322ec1215d5", "e61e649d-1078-4d9d-b5b6-cd609e8c1b11", "e61e649d-1078-4d9d-b5b6-cd609e8c1b11", "304e9655-ee3c-45e2-a49d-9ec8--dc882be8"],
-    "client_id": [20, 1, 1, 1],
-    "source_severity": ["moderate", "moderate", "severe", "moderate"],
-    "code": ["H40.1192", "H40.1192", "H40.1193", "H40.1192"],
-    "short_desc": ["Primary open-angle glaucoma, unspecified eye, moderate stage", "Primary open-angle glaucoma, unspecified eye, moderate stage", "Primary open-angle glaucoma, unspecified eye, severe stage", "Primary open-angle glaucoma, unspecified eye, moderate stage"]
-}
+iop_data = pd.DataFrame(iop_records)
 
-enc_data = {
-    "patient_uid": ["ab3e9f17-75d5-4d7d-9867-ab476d64c6ac", "ab3e9f17-75d5-4d7d-9867-ab476d64c6ac", "e61e649d-1078-4d9d-b5b6-cd609e8c1b11"],
-    "pat_enc_csn_id": ["17EKvJ6dA7/DNOhGWOfWM65tfUt1ziFpwAYVt2S1SLE=", "18FLwK7eB8/EOPhHXPgXN76ugVu2ajGqxBZWu3T2TMF=", "19GMxL8fC9/FPQiIYQhYO87vhWv3bkHryCZXv4U3UNG="],
-    "contact_date": ["7/16/2017", "8/20/2017", "9/15/2019"],
-    "pulse": [67, 72, 68],
-    "bp_systolic": [139, 142, 135],
-    "bp_diastolic": [82, 85, 80]
-}
+# Generate diagnosis data
+diagnosis_records = []
+for i, uid in enumerate(patient_uids):
+    # Most patients have 1-2 diagnoses
+    num_diagnoses = np.random.choice([1, 2, 3], p=[0.6, 0.3, 0.1])
+    
+    base_date = datetime.strptime(first_diagnosis_dates[i], "%m/%d/%Y")
+    
+    for j in range(num_diagnoses):
+        # Diagnosis dates around first diagnosis
+        days_offset = random.randint(-30, 365)
+        dx_date = (base_date + timedelta(days=days_offset)).strftime("%m/%d/%Y")
+        
+        # Select severity
+        severity = np.random.choice(SEVERITY_OPTIONS, p=SEVERITY_WEIGHTS)
+        
+        # Select ICD code based on severity
+        if severity == "mild":
+            code = "H40.1190"
+        elif severity == "moderate":
+            code = np.random.choice(["H40.1192", "H40.1191"], p=[0.8, 0.2])
+        else:
+            code = np.random.choice(["H40.1193", "H40.1194"], p=[0.7, 0.3])
+        
+        short_desc = ICD_CODES.get(code, ICD_CODES["H40.1192"])
+        
+        diagnosis_records.append({
+            "pat_mrn": pat_mrns[i],
+            "POAG_dx_date": dx_date,
+            "patient_uid": uid,
+            "client_id": client_ids[i],
+            "source_severity": severity,
+            "code": code,
+            "short_desc": short_desc
+        })
+
+diagnosis_data = pd.DataFrame(diagnosis_records)
+
+# Generate encounter/vital signs data
+enc_records = []
+for i, uid in enumerate(patient_uids):
+    # Varied encounter counts: 2-4 on average
+    num_encounters = np.random.choice([1, 2, 3, 4, 5, 6], p=[0.1, 0.25, 0.3, 0.2, 0.1, 0.05])
+    
+    base_date = datetime.strptime(first_diagnosis_dates[i], "%m/%d/%Y")
+    
+    for j in range(num_encounters):
+        # Encounter dates after first diagnosis
+        days_after = random.randint(0, 365 * 2)  # Up to 2 years
+        contact_date = (base_date + timedelta(days=days_after)).strftime("%m/%d/%Y")
+        
+        # Generate encounter ID
+        enc_id = generate_mrn()
+        
+        # Realistic vital signs
+        # BP: systolic 100-160, diastolic 60-100
+        bp_systolic = np.random.normal(130, 15)
+        bp_systolic = max(100, min(160, int(bp_systolic)))
+        
+        bp_diastolic = np.random.normal(80, 10)
+        bp_diastolic = max(60, min(100, int(bp_diastolic)))
+        
+        # Pulse: 50-100 bpm
+        pulse = np.random.normal(72, 10)
+        pulse = max(50, min(100, int(pulse)))
+        
+        enc_records.append({
+            "patient_uid": uid,
+            "pat_enc_csn_id": enc_id,
+            "contact_date": contact_date,
+            "pulse": pulse,
+            "bp_systolic": bp_systolic,
+            "bp_diastolic": bp_diastolic
+        })
+
+enc_data = pd.DataFrame(enc_records)
 
 # Create sample_data directory
 sample_dir = Path("sample_data")
@@ -48,9 +176,12 @@ sample_dir.mkdir(exist_ok=True)
 
 # Write Excel files
 pd.DataFrame(cohort_data).to_excel(sample_dir / "cohort.xlsx", index=False)
-pd.DataFrame(iop_data).to_excel(sample_dir / "iop.xlsx", index=False)
-pd.DataFrame(diagnosis_data).to_excel(sample_dir / "diagnosis.xlsx", index=False)
-pd.DataFrame(enc_data).to_excel(sample_dir / "enc.xlsx", index=False)
+iop_data.to_excel(sample_dir / "iop.xlsx", index=False)
+diagnosis_data.to_excel(sample_dir / "diagnosis.xlsx", index=False)
+enc_data.to_excel(sample_dir / "enc.xlsx", index=False)
 
-print("Sample data files created in sample_data/")
-
+print(f"Sample data files created in sample_data/")
+print(f"  - Cohort: {NUM_PATIENTS} patients")
+print(f"  - IOP: {len(iop_records)} measurements")
+print(f"  - Diagnosis: {len(diagnosis_records)} records")
+print(f"  - Encounters: {len(enc_records)} records")

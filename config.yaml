@@ -88,6 +88,84 @@ features:
     - bp_systolic
     - bp_diastolic
   
+  # Data cleaning configuration
+  data_cleaning:
+    enabled: true  # Enable/disable data cleaning
+    method: "both"  # Options: "threshold", "iqr", or "both"
+    action: "warn"  # Options: "warn" (log warnings), "remove" (filter out), or "cap" (clip to limits)
+    iqr_multiplier: 3.0  # For IQR-based outlier detection (1.5 for mild, 3.0 for strict)
+    
+    # Physiologically reasonable thresholds for each feature
+    thresholds:
+      pulse:
+        min: 30
+        max: 200
+        description: "Heart rate (bpm)"
+      od_iop:
+        min: 0
+        max: 100
+        description: "Intraocular pressure OD (mmHg)"
+      os_iop:
+        min: 0
+        max: 100
+        description: "Intraocular pressure OS (mmHg)"
+      bp_systolic:
+        min: 40
+        max: 250
+        description: "Systolic blood pressure (mmHg)"
+      bp_diastolic:
+        min: 20
+        max: 150
+        description: "Diastolic blood pressure (mmHg)"
+      pulse_mean:
+        min: 30
+        max: 200
+        description: "Mean heart rate (bpm)"
+      od_iop_mean:
+        min: 0
+        max: 100
+        description: "Mean IOP OD (mmHg)"
+      os_iop_mean:
+        min: 0
+        max: 100
+        description: "Mean IOP OS (mmHg)"
+      bp_systolic_mean:
+        min: 40
+        max: 250
+        description: "Mean SBP (mmHg)"
+      bp_diastolic_mean:
+        min: 20
+        max: 150
+        description: "Mean DBP (mmHg)"
+      map:
+        min: 30
+        max: 200
+        description: "Mean arterial pressure (mmHg)"
+      mopp_od:
+        min: -50
+        max: 200
+        description: "Mean ocular perfusion pressure OD (mmHg)"
+      mopp_os:
+        min: -50
+        max: 200
+        description: "Mean ocular perfusion pressure OS (mmHg)"
+      sopp_od:
+        min: -50
+        max: 200
+        description: "Systolic ocular perfusion pressure OD (mmHg)"
+      sopp_os:
+        min: -50
+        max: 200
+        description: "Systolic ocular perfusion pressure OS (mmHg)"
+      dopp_od:
+        min: -50
+        max: 200
+        description: "Diastolic ocular perfusion pressure OD (mmHg)"
+      dopp_os:
+        min: -50
+        max: 200
+        description: "Diastolic ocular perfusion pressure OS (mmHg)"
+  
   # Derived features configuration
   derived_features:
     map:
@@ -170,6 +248,19 @@ stratified_eda:
     # Auto-select test based on group count and data distribution
     auto_select: true
     
+    # Large sample handling configuration
+    large_sample_threshold: 5000  # Threshold for warning about p-value accuracy
+    method: "auto"  # Options: "auto", "exact", "asymptotic"
+    max_exact_sample_size: 5000  # Maximum sample size to use exact method
+    sample_down_for_exact: false  # If true, sample down to max_exact_sample_size when using exact
+    suppress_warnings: false  # Suppress scipy warnings about large samples
+    
+    # Groups to exclude from statistical analysis
+    excluded_groups:
+      - indeterminate
+      - intermediate
+      - unspecified
+    
     # Significance levels for asterisks
     significance_levels:
       "*": 0.05
@@ -181,4 +272,28 @@ stratified_eda:
       show_asterisks: true
       show_numeric: true
       show_brackets: true  # Show brackets connecting groups being compared
+  
+  # Features to include in statistical tests (all engineered features + means + variability)
+  features_for_statistics:
+    - pulse_mean
+    - od_iop_mean
+    - os_iop_mean
+    - bp_systolic_mean
+    - bp_diastolic_mean
+    - pulse_std
+    - od_iop_std
+    - os_iop_std
+    - bp_systolic_std
+    - bp_diastolic_std
+    - map
+    - mopp_od
+    - mopp_os
+    - sopp_od
+    - sopp_os
+    - dopp_od
+    - dopp_os
+  
+  # Summary table generation
+  generate_summary_tables: true  # Enable/disable summary table generation
+  summary_table_format: "both"  # Options: "csv", "txt", "both"
 

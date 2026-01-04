@@ -8,16 +8,21 @@ import numpy as np
 from tqdm import tqdm
 from .visualizer import parse_json_array
 from .statistics import perform_statistical_tests, format_pvalue
+from .summary_tables import (create_summary_statistics_table, save_summary_table,
+                             create_statistical_test_table, save_statistical_test_table)
+from .statistical_plots import create_all_individual_test_plots
 
 
-def get_stratification_column(df: pd.DataFrame, config: Dict[str, Any]) -> pd.Series:
+def get_stratification_column(df: pd.DataFrame, config: Dict[str, Any], 
+                              exclude_groups: List[str] = None) -> pd.Series:
     """
     Get stratification column, handling cases with multiple values per patient.
-    Applies group ordering from config.
+    Applies group ordering from config and filters excluded groups.
     
     Args:
         df: DataFrame with patient data
         config: Stratified EDA configuration
+        exclude_groups: List of groups to exclude (applied to final series)
         
     Returns:
         Series with single value per patient (most common value used if multiple)
@@ -40,6 +45,13 @@ def get_stratification_column(df: pd.DataFrame, config: Dict[str, Any]) -> pd.Se
         return str(value_counts.index[0])
     
     strat_series = df[strat_col_name].apply(get_primary_value)
+    
+    # Filter excluded groups
+    if exclude_groups:
+        strat_series = strat_series[~strat_series.isin(exclude_groups)]
+        if len(strat_series) == 0:
+            tqdm.write(f"⚠ Warning: All groups excluded, no data remaining")
+            return pd.Series()
     
     # Apply group ordering if specified
     group_order = config.get('group_order', [])
@@ -312,10 +324,17 @@ def create_stratified_boxplots(df: pd.DataFrame, stratification_col: pd.Series,
             ax.grid(True, alpha=0.3)
             plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
             
-            # Add statistical annotations
+            # Add statistical annotations (excluded groups already filtered)
             if test_config and len(groups_data_dict) >= 2:
                 y_max = max([max(data) for data in plot_data])
-                annotate_statistical_significance(ax, groups_data_dict, positions, test_config, y_max)
+                # Get excluded groups and filter
+                excluded_groups = test_config.get('excluded_groups', [])
+                filtered_groups_data = {k: v for k, v in groups_data_dict.items() if k not in excluded_groups}
+                if len(filtered_groups_data) >= 2:
+                    # Adjust positions for filtered groups
+                    filtered_positions = [positions[list(groups_data_dict.keys()).index(k)] 
+                                        for k in filtered_groups_data.keys()]
+                    annotate_statistical_significance(ax, filtered_groups_data, filtered_positions, test_config, y_max)
     
     # Hide unused subplots
     for idx in range(n_features, len(axes)):
@@ -331,7 +350,8 @@ def create_stratified_boxplots(df: pd.DataFrame, stratification_col: pd.Series,
 
 
 def create_feature_comparison_plots(df: pd.DataFrame, stratification_col: pd.Series,
-                                   features: List[str], output_dir: Path, test_config: Dict[str, Any] = None):
+                                   features: List[str], output_dir: Path, test_config: Dict[str, Any] = None,
+                                   plot_options: Dict[str, Any] = None):
     """
     Create comparison plots for derived features across groups with statistical annotations.
     
@@ -402,22 +422,78 @@ def create_feature_comparison_plots(df: pd.DataFrame, stratification_col: pd.Ser
                 positions.append(i + 1)
         
         if plot_data:
-            bp = ax.boxplot(plot_data, labels=plot_labels, patch_artist=True)
-            # Color boxes
+            # Get plot options
+            if plot_options is None:
+                plot_options = {}
+            plot_type = plot_options.get('plot_type', 'box')
+            show_outliers = plot_options.get('show_outliers', True)
+            scale_type = plot_options.get('scale_type', 'linear')
+            show_individual_points = plot_options.get('show_individual_points', False)
+            enhance_mean_visibility = plot_options.get('enhance_mean_visibility', True)
+            
             colors = sns.color_palette("husl", len(plot_labels))
-            for patch, color in zip(bp['boxes'], colors):
-                patch.set_facecolor(color)
-                patch.set_alpha(0.7)
+            
+            # Calculate means for overlay
+            means = [np.mean(data) for data in plot_data]
+            stds = [np.std(data, ddof=1) for data in plot_data]
+            
+            # Create combined plot
+            if plot_type in ['violin', 'combined']:
+                parts = ax.violinplot(plot_data, positions=positions, widths=0.6, 
+                                     showmeans=False, showmedians=True)
+                for pc, color in zip(parts['bodies'], colors):
+                    pc.set_facecolor(color)
+                    pc.set_alpha(0.6)
+            
+            if plot_type in ['box', 'combined']:
+                bp = ax.boxplot(plot_data, labels=plot_labels, patch_artist=True, 
+                               positions=positions, widths=0.4 if plot_type == 'combined' else 0.6,
+                               showfliers=show_outliers)
+                for patch, color in zip(bp['boxes'], colors):
+                    patch.set_facecolor(color)
+                    patch.set_alpha(0.7)
+            
+            # Add individual points if requested
+            if show_individual_points:
+                for i, (data, pos) in enumerate(zip(plot_data, positions)):
+                    jitter = np.random.normal(0, 0.05, len(data))
+                    ax.scatter(pos + jitter, data, alpha=0.3, s=15, color=colors[i], zorder=5)
+            
+            # Overlay means with error bars (SEM)
+            marker_size = 8 if not enhance_mean_visibility else 10
+            ax.errorbar(positions, means, yerr=stds, fmt='o', color='red', 
+                       markersize=marker_size, capsize=4, capthick=2, linewidth=2,
+                       label='Mean ± SD', zorder=10, markeredgecolor='darkred', markeredgewidth=1.5)
+            
+            # Apply scaling
+            if scale_type == 'iqr_zoom':
+                all_data = np.concatenate(plot_data)
+                q1 = np.percentile(all_data, 25)
+                q3 = np.percentile(all_data, 75)
+                iqr = q3 - q1
+                padding = plot_options.get('iqr_zoom_padding', 0.1) * iqr
+                ax.set_ylim(q1 - 1.5 * iqr - padding, q3 + 1.5 * iqr + padding)
+            elif scale_type == 'log':
+                ax.set_yscale('log')
+            elif scale_type == 'symlog':
+                ax.set_yscale('symlog')
             
             ax.set_title(f'{feature}', pad=15)  # Add padding to prevent overlap with annotations
             ax.set_ylabel('Value')
             ax.grid(True, alpha=0.3)
             plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
             
-            # Add statistical annotations
+            # Add statistical annotations (excluded groups already filtered)
             if test_config and len(groups_data_dict) >= 2:
                 y_max = max([max(data) for data in plot_data])
-                annotate_statistical_significance(ax, groups_data_dict, positions, test_config, y_max)
+                # Get excluded groups and filter
+                excluded_groups = test_config.get('excluded_groups', [])
+                filtered_groups_data = {k: v for k, v in groups_data_dict.items() if k not in excluded_groups}
+                if len(filtered_groups_data) >= 2:
+                    # Adjust positions for filtered groups
+                    filtered_positions = [positions[list(groups_data_dict.keys()).index(k)] 
+                                        for k in filtered_groups_data.keys()]
+                    annotate_statistical_significance(ax, filtered_groups_data, filtered_positions, test_config, y_max)
     
     # Hide unused subplots
     for idx in range(n_features, len(axes)):
@@ -479,8 +555,11 @@ def save_statistical_test_results(df: pd.DataFrame, stratification_col: pd.Serie
                 f.write("Insufficient groups for statistical testing.\n\n")
                 continue
             
-            # Perform tests
-            test_results = perform_statistical_tests(groups_data, test_config)
+            # Get excluded groups from config
+            excluded_groups = test_config.get('excluded_groups', [])
+            
+            # Perform tests (excluded groups already filtered in get_stratification_column)
+            test_results = perform_statistical_tests(groups_data, test_config, excluded_groups=[])
             
             if 'error' in test_results:
                 f.write(f"Error: {test_results['error']}\n\n")
@@ -581,8 +660,12 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
     tqdm.write("Generating Stratified EDA Plots")
     tqdm.write("="*60 + "\n")
     
-    # Get stratification column
-    stratification_col = get_stratification_column(df, config)
+    # Get excluded groups from statistical test config
+    test_config = config.get('statistical_tests', {})
+    excluded_groups = test_config.get('excluded_groups', [])
+    
+    # Get stratification column (with excluded groups filtered)
+    stratification_col = get_stratification_column(df, config, exclude_groups=excluded_groups)
     
     if len(stratification_col) == 0:
         tqdm.write("⚠ No stratification column available, skipping stratified plots")
@@ -593,32 +676,61 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
     strat_output_dir = output_dir / subdir
     strat_output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Get features to plot
+    # Get features for statistics (all engineered features)
+    features_for_statistics = config.get('features_for_statistics', [])
+    
+    # Get features to plot (for visualization)
     features_to_plot = config.get('features_to_plot', [])
     variability_features = config.get('variability_features', [])
-    all_features = features_to_plot + variability_features
+    plot_features = features_to_plot + variability_features
     
     # Create plots
     tqdm.write("Creating stratified distributions...")
-    create_stratified_distributions(df, stratification_col, all_features, strat_output_dir)
-    
-    # Get statistical test config
-    test_config = config.get('statistical_tests', {})
+    create_stratified_distributions(df, stratification_col, plot_features, strat_output_dir)
     
     tqdm.write("Creating stratified box plots...")
-    create_stratified_boxplots(df, stratification_col, all_features, strat_output_dir, test_config)
+    create_stratified_boxplots(df, stratification_col, plot_features, strat_output_dir, test_config)
+    
+    # Get plot options
+    plot_options = config.get('plot_options', {})
     
     tqdm.write("Creating feature comparison plots...")
-    create_feature_comparison_plots(df, stratification_col, features_to_plot, strat_output_dir, test_config)
+    create_feature_comparison_plots(df, stratification_col, features_to_plot, strat_output_dir, 
+                                   test_config, plot_options=plot_options)
     
     tqdm.write("Creating group summary statistics...")
-    create_group_summary_statistics(df, stratification_col, all_features, strat_output_dir)
+    create_group_summary_statistics(df, stratification_col, plot_features, strat_output_dir)
     
-    # Save statistical test results if enabled
-    test_config = config.get('statistical_tests', {})
-    if test_config.get('enabled', False):
+    # Generate summary statistics tables
+    if config.get('generate_summary_tables', True):
+        tqdm.write("Generating summary statistics tables...")
+        summary_df = create_summary_statistics_table(
+            df, stratification_col, features_for_statistics, strat_output_dir
+        )
+        table_format = config.get('summary_table_format', 'both')
+        save_summary_table(summary_df, strat_output_dir, table_format=table_format)
+    
+    # Save statistical test results if enabled (using features_for_statistics)
+    if test_config.get('enabled', False) and features_for_statistics:
         tqdm.write("Saving statistical test results...")
-        save_statistical_test_results(df, stratification_col, all_features, test_config, strat_output_dir)
+        save_statistical_test_results(df, stratification_col, features_for_statistics, test_config, strat_output_dir)
+        
+        # Generate statistical test results table
+        tqdm.write("Generating statistical test results table...")
+        test_table_df = create_statistical_test_table(
+            df, stratification_col, features_for_statistics, test_config
+        )
+        table_format = config.get('summary_table_format', 'both')
+        save_statistical_test_table(test_table_df, strat_output_dir, table_format=table_format)
+        
+        # Get plot options
+        plot_options = config.get('plot_options', {})
+        
+        # Create individual test plots
+        create_all_individual_test_plots(
+            df, stratification_col, features_for_statistics, test_config, 
+            strat_output_dir, plot_options=plot_options
+        )
     
     tqdm.write(f"\n✓ Stratified EDA complete! Plots saved to: {strat_output_dir}\n")
 

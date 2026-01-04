@@ -96,19 +96,32 @@ def compute_derived_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.Dat
     tqdm.write("Computing derived features...")
     
     # Compute MAP first (needed for MOPP)
+    # Formula verified: MAP = DBP + (1/3) * (SBP - DBP)
+    # This is the standard formula for Mean Arterial Pressure
     if 'map' in derived_features:
         map_config = derived_features['map']
         formula = map_config.get('formula', '')
         
-        # Replace column names in formula with actual column references
-        # Formula: "bp_diastolic_mean + (1/3) * (bp_systolic_mean - bp_diastolic_mean)"
         try:
             df['map'] = df['bp_diastolic_mean'] + (1/3) * (df['bp_systolic_mean'] - df['bp_diastolic_mean'])
-            tqdm.write(f"  ✓ MAP computed")
+            
+            # Validation: Check for physiologically reasonable values
+            n_negative = (df['map'] < 0).sum()
+            n_very_high = (df['map'] > 250).sum()
+            if n_negative > 0:
+                tqdm.write(f"  ⚠ MAP: {n_negative} negative values detected (may indicate data quality issues)")
+            if n_very_high > 0:
+                tqdm.write(f"  ⚠ MAP: {n_very_high} values > 250 mmHg detected")
+            
+            tqdm.write(f"  ✓ MAP computed (formula: DBP + (1/3)*(SBP - DBP))")
         except Exception as e:
             tqdm.write(f"  ⚠ Error computing MAP: {e}")
     
     # Compute other derived features
+    # Formulas verified:
+    # MOPP = (2/3 * MAP) - IOP  (Mean Ocular Perfusion Pressure)
+    # SOPP = SBP - IOP  (Systolic Ocular Perfusion Pressure)
+    # DOPP = DBP - IOP  (Diastolic Ocular Perfusion Pressure)
     for feat_name, feat_config in derived_features.items():
         if feat_name == 'map':
             continue  # Already computed
@@ -117,20 +130,40 @@ def compute_derived_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.Dat
         description = feat_config.get('description', feat_name)
         
         try:
-            # Parse formula and compute
-            # Handle formulas like "(2/3) * map - od_iop_mean"
+            # Parse formula and compute with validation
             if 'mopp_od' in feat_name:
+                # MOPP = (2/3 * MAP) - IOP
                 df['mopp_od'] = (2/3) * df['map'] - df['od_iop_mean']
+                n_negative = (df['mopp_od'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             elif 'mopp_os' in feat_name:
                 df['mopp_os'] = (2/3) * df['map'] - df['os_iop_mean']
+                n_negative = (df['mopp_os'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             elif 'sopp_od' in feat_name:
+                # SOPP = SBP - IOP
                 df['sopp_od'] = df['bp_systolic_mean'] - df['od_iop_mean']
+                n_negative = (df['sopp_od'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             elif 'sopp_os' in feat_name:
                 df['sopp_os'] = df['bp_systolic_mean'] - df['os_iop_mean']
+                n_negative = (df['sopp_os'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             elif 'dopp_od' in feat_name:
+                # DOPP = DBP - IOP
                 df['dopp_od'] = df['bp_diastolic_mean'] - df['od_iop_mean']
+                n_negative = (df['dopp_od'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             elif 'dopp_os' in feat_name:
                 df['dopp_os'] = df['bp_diastolic_mean'] - df['os_iop_mean']
+                n_negative = (df['dopp_os'] < -50).sum()
+                if n_negative > 0:
+                    tqdm.write(f"  ⚠ {feat_name}: {n_negative} values < -50 mmHg (very low perfusion pressure)")
             else:
                 # Generic formula evaluation (if needed for future features)
                 # Replace common patterns
@@ -165,6 +198,10 @@ def engineer_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
     tqdm.write("\n" + "="*60)
     tqdm.write("Feature Engineering Pipeline")
     tqdm.write("="*60 + "\n")
+    
+    # Apply data cleaning if enabled
+    from .data_cleaning import clean_feature_data
+    df, cleaning_stats = clean_feature_data(df, config)
     
     # Compute means
     if config.get('compute_means', True):

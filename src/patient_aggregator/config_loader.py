@@ -65,3 +65,47 @@ def get_statistical_test_config(config: Dict[str, Any]) -> Dict[str, Any]:
     stratified_config = config.get('stratified_eda', {})
     return stratified_config.get('statistical_tests', {})
 
+
+def get_large_sample_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get large sample handling configuration from statistical tests config."""
+    test_config = get_statistical_test_config(config)
+    return {
+        'large_sample_threshold': test_config.get('large_sample_threshold', 5000),
+        'method': test_config.get('method', 'auto'),
+        'max_exact_sample_size': test_config.get('max_exact_sample_size', 5000),
+        'sample_down_for_exact': test_config.get('sample_down_for_exact', False),
+        'suppress_warnings': test_config.get('suppress_warnings', False)
+    }
+
+
+def get_excluded_groups(config: Dict[str, Any]) -> List[str]:
+    """Get list of groups to exclude from statistical analysis."""
+    test_config = get_statistical_test_config(config)
+    return test_config.get('excluded_groups', ['indeterminate', 'intermediate', 'unspecified'])
+
+
+def get_features_for_statistics(config: Dict[str, Any]) -> List[str]:
+    """Get list of features to include in statistical tests."""
+    stratified_config = config.get('stratified_eda', {})
+    features = stratified_config.get('features_for_statistics', [])
+    
+    # If not specified, default to all engineered features
+    if not features:
+        # Get features from feature config
+        feature_config = get_feature_config(config)
+        mean_cols = feature_config.get('mean_columns', [])
+        derived_features = feature_config.get('derived_features', {})
+        
+        # Build default list
+        features = [f"{col}_mean" for col in mean_cols]
+        features.extend([f"{col}_std" for col in mean_cols])
+        features.extend(list(derived_features.keys()))
+    
+    return features
+
+
+def get_plot_options(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get plot visualization options from config."""
+    stratified_config = config.get('stratified_eda', {})
+    return stratified_config.get('plot_options', {})
+

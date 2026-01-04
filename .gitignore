@@ -40,4 +40,5 @@ htmlcov/
 
 # Output files
 *.csv
+!sample_data/*.csv
 

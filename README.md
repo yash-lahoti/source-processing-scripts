@@ -121,6 +121,27 @@ The output CSV file contains one row per patient (grouped by `patient_id_column`
 
 Sample Excel files are provided in the `sample_data/` directory for testing.
 
+## Running from IDE (No Terminal Required)
+
+For easy use without terminal commands, use the provided scripts:
+
+### Quick Script: `run_aggregation.py`
+Simply run this script from your IDE - it will:
+- Automatically find your data directory
+- Scan for Excel files
+- Run aggregation
+- Display results summary
+
+Just right-click `run_aggregation.py` in your IDE and select "Run"!
+
+### Advanced Script: `run_aggregation_with_config.py`
+For more control, use this script with options:
+- `--data-dir`: Specify data directory
+- `--config`: Specify config file
+- `--output`: Specify output file
+
+See `SCRIPTS_README.md` for detailed instructions.
+
 You can regenerate sample data using the script in the `scripts/` directory:
 
 ```bash

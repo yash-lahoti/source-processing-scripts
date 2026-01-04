@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Dict, Any
 import numpy as np
+from tqdm import tqdm
 
 
 def parse_json_array(value: str) -> List[Any]:
@@ -20,20 +21,22 @@ def parse_json_array(value: str) -> List[Any]:
 
 
 def extract_numeric_values(df: pd.DataFrame, column: str) -> List[float]:
-    """Extract and flatten all numeric values from a column containing JSON arrays."""
+    """Extract and flatten all numeric values from a column containing JSON arrays (optimized)."""
+    # Use vectorized apply instead of loop
+    all_arrays = df[column].apply(parse_json_array)
     all_values = []
-    for value in df[column]:
-        parsed = parse_json_array(value)
-        all_values.extend([float(v) for v in parsed if isinstance(v, (int, float))])
+    for arr in all_arrays:
+        all_values.extend([float(v) for v in arr if isinstance(v, (int, float))])
     return all_values
 
 
 def extract_categorical_values(df: pd.DataFrame, column: str) -> List[str]:
-    """Extract and flatten all categorical values from a column containing JSON arrays."""
+    """Extract and flatten all categorical values from a column containing JSON arrays (optimized)."""
+    # Use vectorized apply instead of loop
+    all_arrays = df[column].apply(parse_json_array)
     all_values = []
-    for value in df[column]:
-        parsed = parse_json_array(value)
-        all_values.extend([str(v) for v in parsed if isinstance(v, str)])
+    for arr in all_arrays:
+        all_values.extend([str(v) for v in arr if isinstance(v, str)])
     return all_values
 
 
@@ -239,11 +242,12 @@ def create_summary_statistics(df: pd.DataFrame, numeric_columns: List[str],
             
             f.write(f"\nPatients with complete data (all measurement types): ")
             if all_columns:
-                complete_patients = 0
-                for _, patient_row in df.iterrows():
-                    has_all = all(len(parse_json_array(patient_row[col])) > 0 for col in all_columns)
-                    if has_all:
-                        complete_patients += 1
+                # Vectorized check for complete data
+                has_data = pd.DataFrame({
+                    col: df[col].apply(lambda x: len(parse_json_array(x)) > 0)
+                    for col in all_columns
+                })
+                complete_patients = has_data.all(axis=1).sum()
                 f.write(f"{complete_patients}/{len(df)} ({complete_patients/len(df)*100:.1f}%)\n\n")
             else:
                 f.write("N/A\n\n")
@@ -289,8 +293,7 @@ def create_summary_statistics(df: pd.DataFrame, numeric_columns: List[str],
 
 
 def count_measurements_per_patient(df: pd.DataFrame, column: str) -> pd.Series:
-    """Count number of measurements per patient for a given column."""
-    counts = []
+    """Count number of measurements per patient for a given column (optimized)."""
     patient_id_col = None
     for col in df.columns:
         if col.lower() in ['patient_uid', 'patient_id', 'id']:
@@ -300,11 +303,10 @@ def count_measurements_per_patient(df: pd.DataFrame, column: str) -> pd.Series:
     if patient_id_col is None:
         return pd.Series()
     
-    for _, row in df.iterrows():
-        values = parse_json_array(row[column])
-        counts.append(len(values))
+    # Vectorized operation: apply parse_json_array to entire column
+    counts = df[column].apply(lambda x: len(parse_json_array(x)))
     
-    return pd.Series(counts, index=df[patient_id_col])
+    return pd.Series(counts.values, index=df[patient_id_col])
 
 
 def create_measurement_count_distribution(df: pd.DataFrame, numeric_columns: List[str], output_dir: Path):
@@ -553,32 +555,29 @@ def visualize_aggregated_data(csv_path: str, output_dir: str = None):
         sns.set_style("whitegrid")
         sns.set_palette("husl")
         
-        # Create visualizations
+        # Create visualizations with progress tracking
+        viz_tasks = []
         if numeric_columns:
-            print("Creating numeric distribution plots...")
-            create_numeric_distributions(df, numeric_columns, output_dir)
-            
-            print("Creating box plots...")
-            create_box_plots(df, numeric_columns, output_dir)
+            viz_tasks.append(("Creating numeric distribution plots...", 
+                            lambda: create_numeric_distributions(df, numeric_columns, output_dir)))
+            viz_tasks.append(("Creating box plots...", 
+                            lambda: create_box_plots(df, numeric_columns, output_dir)))
+            viz_tasks.append(("Creating patient measurement count distributions...", 
+                            lambda: create_measurement_count_distribution(df, numeric_columns, output_dir)))
         
         if categorical_columns:
-            print("Creating categorical count plots...")
-            create_categorical_counts(df, categorical_columns, output_dir)
+            viz_tasks.append(("Creating categorical count plots...", 
+                            lambda: create_categorical_counts(df, categorical_columns, output_dir)))
+            viz_tasks.append(("Creating patient cohort summary...", 
+                            lambda: create_patient_cohort_summary(df, categorical_columns, output_dir)))
         
-        # Patient-level analysis
-        if numeric_columns:
-            print("Creating patient measurement count distributions...")
-            create_measurement_count_distribution(df, numeric_columns, output_dir)
+        viz_tasks.append(("Creating data availability heatmap...", 
+                        lambda: create_data_availability_heatmap(df, numeric_columns, categorical_columns, output_dir)))
+        viz_tasks.append(("Generating summary statistics...", 
+                        lambda: create_summary_statistics(df, numeric_columns, categorical_columns, output_dir)))
         
-        print("Creating data availability heatmap...")
-        create_data_availability_heatmap(df, numeric_columns, categorical_columns, output_dir)
-        
-        if categorical_columns:
-            print("Creating patient cohort summary...")
-            create_patient_cohort_summary(df, categorical_columns, output_dir)
-        
-        print("Generating summary statistics...")
-        create_summary_statistics(df, numeric_columns, categorical_columns, output_dir)
+        for desc, func in tqdm(viz_tasks, desc="Generating visualizations", unit="plot"):
+            func()
         
         print(f"\n{'=' * 60}")
         print("✓ Visualization complete!")

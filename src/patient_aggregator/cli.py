@@ -5,8 +5,8 @@ from .aggregator import aggregate_patients
 
 def main():
     """Command-line interface."""
-    parser = argparse.ArgumentParser(description="Aggregate patient data from Excel files")
-    parser.add_argument("--input-dir", required=True, help="Directory containing Excel files")
+    parser = argparse.ArgumentParser(description="Aggregate patient data from Excel or CSV files")
+    parser.add_argument("--input-dir", required=True, help="Directory containing Excel or CSV files")
     parser.add_argument("--output", required=True, help="Output CSV file path")
     parser.add_argument("--config", help="Path to config YAML file (default: config.yaml in project root)")
     args = parser.parse_args()

@@ -6,6 +6,34 @@ from typing import Dict, List, Any
 from .config_loader import load_config, get_file_configs, get_output_format
 
 
+def _read_data_file(file_path: Path) -> pd.DataFrame:
+    """
+    Read a data file (Excel or CSV) and return a DataFrame.
+    
+    Args:
+        file_path: Path to the file
+        
+    Returns:
+        DataFrame with the file contents
+        
+    Raises:
+        ValueError: If file format is not supported
+    """
+    file_path = Path(file_path)
+    
+    if not file_path.exists():
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    suffix = file_path.suffix.lower()
+    
+    if suffix in ['.xlsx', '.xls']:
+        return pd.read_excel(file_path)
+    elif suffix == '.csv':
+        return pd.read_csv(file_path)
+    else:
+        raise ValueError(f"Unsupported file format: {suffix}. Supported formats: .xlsx, .xls, .csv")
+
+
 def _format_value(values: List, format_type: str) -> str:
     """Format aggregated values based on output format."""
     if format_type == "json_array":
@@ -41,7 +69,7 @@ def _aggregate_column(df: pd.DataFrame, patient_id: str, col_config: Dict, patie
 
 
 def aggregate_patients(input_dir: str, output_file: str, config_path: str = None):
-    """Aggregate patient data from Excel files into single CSV."""
+    """Aggregate patient data from Excel or CSV files into single CSV."""
     if config_path is None:
         # Try current directory first, then package directory
         current_dir_config = Path("config.yaml")
@@ -63,11 +91,35 @@ def aggregate_patients(input_dir: str, output_file: str, config_path: str = None
         file_name = file_config['file']
         file_path = input_path / file_name
         
+        # Try to find file with different extensions if exact match not found
+        original_file_path = file_path
         if not file_path.exists():
-            print(f"Warning: File {file_name} not found, skipping...")
-            continue
+            # Try common extensions (prioritize the extension in config, then try others)
+            base_name = file_path.stem
+            possible_paths = [
+                input_path / f"{base_name}.xlsx",
+                input_path / f"{base_name}.csv",
+                input_path / f"{base_name}.xls",
+                original_file_path,  # Try original as last resort
+            ]
+            
+            file_path = None
+            for possible_path in possible_paths:
+                if possible_path.exists():
+                    file_path = possible_path
+                    if possible_path.name != file_name:
+                        print(f"  Found: {file_name} -> {possible_path.name}")
+                    break
+            
+            if file_path is None:
+                print(f"Warning: File {file_name} (or variants .xlsx/.csv/.xls) not found, skipping...")
+                continue
         
-        df = pd.read_excel(file_path)
+        try:
+            df = _read_data_file(file_path)
+        except Exception as e:
+            print(f"Warning: Error reading {file_path}: {e}, skipping...")
+            continue
         
         # Aggregate each configured column
         for col_config in file_config.get('columns', []):

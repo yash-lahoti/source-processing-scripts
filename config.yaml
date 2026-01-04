@@ -4,9 +4,11 @@
 patient_id_column: "patient_uid"
 
 # Input files configuration
+# Supported formats: .xlsx, .xls, .csv
+# The system will automatically detect the file format
 files:
   - name: "iop"
-    file: "iop.xlsx"
+    file: "iop.xlsx"  # Can also be "iop.csv"
     columns:
       - name: "od_iop"
         type: "int"

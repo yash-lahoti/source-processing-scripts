@@ -45,19 +45,22 @@ def scan_data_directory(data_dir):
     if not data_path.exists():
         return None, []
     
-    # Look for Excel files
+    # Look for Excel and CSV files
     excel_files = list(data_path.glob("*.xlsx"))
     excel_files.extend(data_path.glob("*.xls"))
+    excel_files.extend(data_path.glob("*.csv"))
     
-    # Check for expected files
-    expected_files = ["cohort.xlsx", "iop.xlsx", "diagnosis.xlsx", "enc.xlsx"]
+    # Check for expected files (with various extensions)
+    expected_files = ["cohort", "iop", "diagnosis", "enc"]
     found_files = {}
     
     for file in excel_files:
-        filename = file.name.lower()
+        filename = file.stem.lower()  # Get filename without extension
         for expected in expected_files:
-            if expected.replace(".xlsx", "") in filename:
-                found_files[expected] = file
+            if expected.lower() in filename:
+                # Use the base name as key, store the actual file path
+                key = f"{expected}.xlsx"  # Default key format
+                found_files[key] = file
                 break
     
     return data_path, found_files
@@ -99,10 +102,11 @@ def main():
         print(f"❌ Error: No Excel files found in {data_dir}")
         return 1
     
-    print("Found Excel files:")
+    print("Found data files:")
     for expected_file in ["cohort.xlsx", "iop.xlsx", "diagnosis.xlsx", "enc.xlsx"]:
         if expected_file in found_files:
-            print(f"  ✓ {expected_file}")
+            actual_file = found_files[expected_file]
+            print(f"  ✓ {expected_file} (found as {actual_file.name})")
         else:
             print(f"  ⚠ {expected_file} (not found - will be skipped)")
     print()

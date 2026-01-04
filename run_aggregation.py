@@ -115,41 +115,109 @@ def main():
             print(f"  ⚠ {expected_file} (not found - will be skipped)")
     print()
     
-    # Set output file
-    output_file = Path(__file__).parent / "aggregated_patients.csv"
+    # Load config to get output directory
+    from patient_aggregator.config_loader import load_config, get_output_directory
+    
+    config_path = Path("config.yaml")
+    if not config_path.exists():
+        config_path = Path(__file__).parent / "config.yaml"
+    
+    config = load_config(str(config_path)) if config_path.exists() else {}
+    
+    # Create output directory
+    output_dir = get_output_directory(config, Path(__file__).parent)
+    print(f"📁 Output directory: {output_dir}")
+    print()
+    
+    # Set output file in output directory
+    output_filename = config.get('output', {}).get('aggregated_file', 'aggregated_patients.csv')
+    output_file = output_dir / output_filename
     
     print(f"Output file: {output_file}")
     print()
-    print("Starting aggregation...")
-    print("-" * 60)
+    
+    # Check if aggregation is needed
+    if output_file.exists():
+        print("✓ Aggregated file already exists. Skipping aggregation.")
+        print("  (Delete the file or use --force to regenerate)")
+        print()
+    else:
+        print("Starting aggregation...")
+        print("-" * 60)
     
     try:
-        # Run aggregation
+        # Run aggregation (will skip if file exists)
         aggregate_patients(
             input_dir=str(data_path),
             output_file=str(output_file)
         )
         
-        print("-" * 60)
-        print("✓ Aggregation complete!")
-        print()
-        print(f"Results saved to: {output_file}")
+        if not output_file.exists():
+            print("-" * 60)
+            print("✓ Aggregation complete!")
+            print()
         
         # Show summary
         try:
             import pandas as pd
+            from patient_aggregator.config_loader import load_config, get_filter_config
+            from patient_aggregator.filter import create_subset, save_subset
+            
             df = pd.read_csv(output_file)
             print(f"✓ Total patients aggregated: {len(df)}")
             print(f"✓ Columns: {len(df.columns)}")
             print()
             print("Columns:", ", ".join(df.columns.tolist()))
+            print()
+            
+            # Apply filtering if configured
+            config_path = Path("config.yaml")
+            if not config_path.exists():
+                config_path = Path(__file__).parent / "config.yaml"
+            
+            visualization_file = output_file  # Default to full dataset
+            
+            if config_path.exists():
+                config = load_config(str(config_path))
+                filter_config = get_filter_config(config)
+                
+                if filter_config.get('enabled', False):
+                    # Save subset in output directory
+                    subset_filename = filter_config.get('subset_file', 'aggregated_patients_subset.csv')
+                    subset_file = output_dir / subset_filename
+                    
+                    # Only create subset if it doesn't exist or if aggregation was just run
+                    if not subset_file.exists() or not output_file.exists() or output_file.stat().st_mtime > subset_file.stat().st_mtime:
+                        # Create subset
+                        subset_df = create_subset(df, filter_config)
+                        # Save subset
+                        save_subset(subset_df, str(subset_file))
+                    else:
+                        subset_df = pd.read_csv(subset_file)
+                        print(f"✓ Subset file already exists: {subset_file.name}")
+                        print(f"  Subset: {len(subset_df)} patients")
+                    
+                    # Use subset for visualizations
+                    visualization_file = subset_file
+                    print(f"\n📊 Using subset for EDA: {visualization_file.name}")
+                    print(f"   Subset: {len(subset_df)} patients")
+                    print(f"   Full dataset: {len(df)} patients")
+                
         except Exception as e:
-            print(f"Note: Could not read output file for summary: {e}")
+            print(f"Note: Could not process output file: {e}")
+            import traceback
+            traceback.print_exc()
+            visualization_file = output_file
         
         # Generate visualizations
         if not args.no_plots:
             try:
-                visualize_aggregated_data(str(output_file))
+                print(f"\n{'='*60}")
+                print("Generating Data Visualizations")
+                print(f"{'='*60}\n")
+                # Save plots in output directory
+                plots_dir = output_dir / "plots"
+                visualize_aggregated_data(str(visualization_file), str(plots_dir))
             except Exception as e:
                 print(f"\n⚠ Warning: Could not generate visualizations: {e}")
                 print("Aggregation completed successfully, but visualizations were skipped.")

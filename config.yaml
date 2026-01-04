@@ -46,4 +46,30 @@ files:
 # Output configuration
 output:
   format: "json_array"  # Options: json_array, comma_separated, pipe_separated
+  directory: "output"  # Directory where all output files will be saved
+  aggregated_file: "aggregated_patients.csv"  # Main aggregated output file
+
+# Filtering and subsetting configuration
+filtering:
+  enabled: true  # Set to false to disable filtering
+  subset_file: "aggregated_patients_subset.csv"  # Subset file name (saved in output directory)
+  
+  # Required columns: each patient must have at least min_count values
+  required_columns:
+    bp_systolic:
+      min_count: 1  # At least 1 SBP measurement
+      description: "Systolic blood pressure"
+    bp_diastolic:
+      min_count: 1  # At least 1 DBP measurement
+      description: "Diastolic blood pressure"
+    pulse:
+      min_count: 1  # At least 1 HR measurement
+      description: "Heart rate / pulse"
+  
+  # Group requirements: patient must have at least min_count values across the group
+  group_requirements:
+    - name: "iop_measurements"
+      columns: ["od_iop", "os_iop"]  # At least one IOP value (either eye)
+      min_count: 1
+      description: "At least one IOP measurement from either eye"
 

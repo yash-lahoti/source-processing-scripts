@@ -27,3 +27,19 @@ def get_output_format(config: Dict[str, Any]) -> str:
     """Get output format from config."""
     return config.get('output', {}).get('format', 'json_array')
 
+
+def get_output_directory(config: Dict[str, Any], base_path: Path = None) -> Path:
+    """Get output directory from config, creating it if needed."""
+    if base_path is None:
+        base_path = Path.cwd()
+    
+    output_dir = config.get('output', {}).get('directory', 'output')
+    output_path = base_path / output_dir
+    output_path.mkdir(parents=True, exist_ok=True)
+    return output_path
+
+
+def get_filter_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get filter configuration from config."""
+    return config.get('filtering', {})
+

@@ -97,8 +97,24 @@ def _aggregate_column_efficient(df: pd.DataFrame, patient_id: str, col_config: D
                 patients[uid][col_name].append(str(value))
 
 
-def aggregate_patients(input_dir: str, output_file: str, config_path: str = None):
-    """Aggregate patient data from Excel or CSV files into single CSV."""
+def aggregate_patients(input_dir: str, output_file: str, config_path: str = None, force: bool = False):
+    """
+    Aggregate patient data from Excel or CSV files into single CSV.
+    
+    Args:
+        input_dir: Directory containing input files
+        output_file: Path to output CSV file
+        config_path: Path to config YAML file (optional)
+        force: If True, regenerate even if output file exists (default: False)
+    """
+    output_path = Path(output_file)
+    
+    # Check if output file already exists
+    if output_path.exists() and not force:
+        tqdm.write(f"✓ Aggregated file already exists: {output_file}")
+        tqdm.write(f"  Skipping aggregation. Use force=True to regenerate.")
+        return
+    
     if config_path is None:
         # Try current directory first, then package directory
         current_dir_config = Path("config.yaml")

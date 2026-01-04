@@ -44,6 +44,7 @@ htmlcov/
 
 # Visualization outputs
 plots/
+output/
 *.png
 !sample_data/*.png
 

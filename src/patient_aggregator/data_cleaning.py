@@ -28,7 +28,22 @@ def apply_cleaning_thresholds(df: pd.DataFrame, thresholds: Dict[str, Dict[str, 
         min_val = limits.get('min', -np.inf)
         max_val = limits.get('max', np.inf)
         
-        # Count values outside thresholds
+        # Convert column to numeric if needed
+        # Check if column is already numeric
+        if not pd.api.types.is_numeric_dtype(df_cleaned[feature]):
+            # Try to convert to numeric
+            original_dtype = df_cleaned[feature].dtype
+            df_cleaned[feature] = pd.to_numeric(df_cleaned[feature], errors='coerce')
+            
+            # Check if conversion was successful (at least some values converted)
+            if df_cleaned[feature].isna().all():
+                tqdm.write(f"  ⚠ {feature}: Cannot convert to numeric (all values invalid), skipping threshold check")
+                continue
+            elif df_cleaned[feature].isna().any():
+                n_invalid = df_cleaned[feature].isna().sum()
+                tqdm.write(f"  ⚠ {feature}: Converted to numeric, but {n_invalid} values could not be converted (set to NaN)")
+        
+        # Count values outside thresholds (only for numeric columns)
         n_outside = ((df_cleaned[feature] < min_val) | (df_cleaned[feature] > max_val)).sum()
         
         if n_outside > 0:

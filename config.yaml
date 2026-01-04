@@ -48,6 +48,7 @@ output:
   format: "json_array"  # Options: json_array, comma_separated, pipe_separated
   directory: "output"  # Directory where all output files will be saved
   aggregated_file: "aggregated_patients.csv"  # Main aggregated output file
+  generate_full_plots: false  # Set to true to generate full aggregated plots (numeric_distributions, categorical_counts, etc.)
 
 # Filtering and subsetting configuration
 filtering:

@@ -28,6 +28,11 @@ def get_output_format(config: Dict[str, Any]) -> str:
     return config.get('output', {}).get('format', 'json_array')
 
 
+def get_generate_full_plots(config: Dict[str, Any]) -> bool:
+    """Get whether to generate full aggregated plots."""
+    return config.get('output', {}).get('generate_full_plots', False)
+
+
 def get_output_directory(config: Dict[str, Any], base_path: Path = None) -> Path:
     """Get output directory from config, creating it if needed."""
     if base_path is None:

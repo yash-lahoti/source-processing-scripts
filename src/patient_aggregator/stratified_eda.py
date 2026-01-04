@@ -48,10 +48,12 @@ def get_stratification_column(df: pd.DataFrame, config: Dict[str, Any],
     
     # Filter excluded groups
     if exclude_groups:
-        strat_series = strat_series[~strat_series.isin(exclude_groups)]
+        mask = ~strat_series.isin(exclude_groups)
+        strat_series = strat_series[mask]
+        
         if len(strat_series) == 0:
             tqdm.write(f"⚠ Warning: All groups excluded, no data remaining")
-            return pd.Series()
+            return pd.Series(dtype=object)
     
     # Apply group ordering if specified
     group_order = config.get('group_order', [])
@@ -62,8 +64,10 @@ def get_stratification_column(df: pd.DataFrame, config: Dict[str, Any],
         ordered_groups = [g for g in group_order if g in all_groups]
         ordered_groups.extend([g for g in all_groups if g not in ordered_groups])
         
-        # Convert to categorical with order - ensure we maintain the order
-        strat_series = pd.Categorical(strat_series, categories=ordered_groups, ordered=True)
+        # Convert to categorical with order - keep as Series with categorical dtype
+        # Use ordered=False to avoid comparison issues
+        strat_series = pd.Series(pd.Categorical(strat_series.values, categories=ordered_groups, ordered=False), 
+                                index=strat_series.index)
     
     return strat_series
 
@@ -671,6 +675,10 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
         tqdm.write("⚠ No stratification column available, skipping stratified plots")
         return
     
+    # Filter DataFrame to match the filtered stratification column indices
+    # This ensures df and stratification_col have the same length and aligned indices
+    df_filtered = df.loc[stratification_col.index].copy()
+    
     # Create output subdirectory
     subdir = config.get('output_subdirectory', 'stratified_plots')
     strat_output_dir = output_dir / subdir
@@ -684,28 +692,28 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
     variability_features = config.get('variability_features', [])
     plot_features = features_to_plot + variability_features
     
-    # Create plots
+    # Create plots - use filtered DataFrame
     tqdm.write("Creating stratified distributions...")
-    create_stratified_distributions(df, stratification_col, plot_features, strat_output_dir)
+    create_stratified_distributions(df_filtered, stratification_col, plot_features, strat_output_dir)
     
     tqdm.write("Creating stratified box plots...")
-    create_stratified_boxplots(df, stratification_col, plot_features, strat_output_dir, test_config)
+    create_stratified_boxplots(df_filtered, stratification_col, plot_features, strat_output_dir, test_config)
     
     # Get plot options
     plot_options = config.get('plot_options', {})
     
     tqdm.write("Creating feature comparison plots...")
-    create_feature_comparison_plots(df, stratification_col, features_to_plot, strat_output_dir, 
+    create_feature_comparison_plots(df_filtered, stratification_col, features_to_plot, strat_output_dir, 
                                    test_config, plot_options=plot_options)
     
     tqdm.write("Creating group summary statistics...")
-    create_group_summary_statistics(df, stratification_col, plot_features, strat_output_dir)
+    create_group_summary_statistics(df_filtered, stratification_col, plot_features, strat_output_dir)
     
     # Generate summary statistics tables
     if config.get('generate_summary_tables', True):
         tqdm.write("Generating summary statistics tables...")
         summary_df = create_summary_statistics_table(
-            df, stratification_col, features_for_statistics, strat_output_dir
+            df_filtered, stratification_col, features_for_statistics, strat_output_dir
         )
         table_format = config.get('summary_table_format', 'both')
         save_summary_table(summary_df, strat_output_dir, table_format=table_format)
@@ -713,12 +721,12 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
     # Save statistical test results if enabled (using features_for_statistics)
     if test_config.get('enabled', False) and features_for_statistics:
         tqdm.write("Saving statistical test results...")
-        save_statistical_test_results(df, stratification_col, features_for_statistics, test_config, strat_output_dir)
+        save_statistical_test_results(df_filtered, stratification_col, features_for_statistics, test_config, strat_output_dir)
         
         # Generate statistical test results table
         tqdm.write("Generating statistical test results table...")
         test_table_df = create_statistical_test_table(
-            df, stratification_col, features_for_statistics, test_config
+            df_filtered, stratification_col, features_for_statistics, test_config
         )
         table_format = config.get('summary_table_format', 'both')
         save_statistical_test_table(test_table_df, strat_output_dir, table_format=table_format)
@@ -728,7 +736,7 @@ def create_stratified_plots(df: pd.DataFrame, config: Dict[str, Any], output_dir
         
         # Create individual test plots
         create_all_individual_test_plots(
-            df, stratification_col, features_for_statistics, test_config, 
+            df_filtered, stratification_col, features_for_statistics, test_config, 
             strat_output_dir, plot_options=plot_options
         )
     

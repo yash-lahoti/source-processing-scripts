@@ -225,18 +225,26 @@ def main():
         # Generate visualizations
         if not args.no_plots:
             try:
-                print(f"\n{'='*60}")
-                print("Generating Data Visualizations")
-                print(f"{'='*60}\n")
-                # Save plots in output directory
-                plots_dir = output_dir / "plots"
-                visualize_aggregated_data(str(visualization_file), str(plots_dir))
+                from patient_aggregator.config_loader import get_generate_full_plots, get_stratified_eda_config
+                from patient_aggregator.stratified_eda import create_stratified_plots
                 
-                # Generate stratified EDA plots if enabled
+                plots_dir = output_dir / "plots"
+                
+                # Generate full aggregated plots if enabled in config
+                generate_full_plots = get_generate_full_plots(config) if config_path.exists() else False
+                
+                if generate_full_plots:
+                    print(f"\n{'='*60}")
+                    print("Generating Full Aggregated Data Visualizations")
+                    print(f"{'='*60}\n")
+                    visualize_aggregated_data(str(visualization_file), str(plots_dir))
+                else:
+                    print(f"\n{'='*60}")
+                    print("Skipping Full Aggregated Plots (disabled in config)")
+                    print(f"{'='*60}\n")
+                
+                # Generate stratified EDA plots if enabled (always run if config exists)
                 if config_path.exists():
-                    from patient_aggregator.config_loader import get_stratified_eda_config
-                    from patient_aggregator.stratified_eda import create_stratified_plots
-                    
                     stratified_config = get_stratified_eda_config(config)
                     
                     # Use features DataFrame if available

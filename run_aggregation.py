@@ -30,9 +30,11 @@ def find_data_directory():
     
     for data_dir in possible_dirs:
         if data_dir.exists() and data_dir.is_dir():
-            # Check if it contains Excel files
-            excel_files = list(data_dir.glob("*.xlsx"))
-            if excel_files:
+            # Check if it contains Excel or CSV files
+            data_files = list(data_dir.glob("*.xlsx"))
+            data_files.extend(data_dir.glob("*.xls"))
+            data_files.extend(data_dir.glob("*.csv"))
+            if data_files:
                 return data_dir
     
     return None
@@ -46,20 +48,21 @@ def scan_data_directory(data_dir):
         return None, []
     
     # Look for Excel and CSV files
-    excel_files = list(data_path.glob("*.xlsx"))
-    excel_files.extend(data_path.glob("*.xls"))
-    excel_files.extend(data_path.glob("*.csv"))
+    data_files = list(data_path.glob("*.xlsx"))
+    data_files.extend(data_path.glob("*.xls"))
+    data_files.extend(data_path.glob("*.csv"))
     
     # Check for expected files (with various extensions)
-    expected_files = ["cohort", "iop", "diagnosis", "enc"]
+    # Match base names (without extension)
+    expected_basenames = ["cohort", "iop", "diagnosis", "enc"]
     found_files = {}
     
-    for file in excel_files:
-        filename = file.stem.lower()  # Get filename without extension
-        for expected in expected_files:
-            if expected.lower() in filename:
-                # Use the base name as key, store the actual file path
-                key = f"{expected}.xlsx"  # Default key format
+    for file in data_files:
+        filename_base = file.stem.lower()  # Get filename without extension (case-insensitive)
+        for expected in expected_basenames:
+            if expected.lower() == filename_base:  # Exact match on base name
+                # Use the expected name with .xlsx extension as key for display
+                key = f"{expected}.xlsx"
                 found_files[key] = file
                 break
     
@@ -83,9 +86,9 @@ def main():
     data_dir = find_data_directory()
     
     if data_dir is None:
-        print("❌ Error: Could not find data directory with Excel files.")
+        print("❌ Error: Could not find data directory with Excel or CSV files.")
         print()
-        print("Please ensure one of these directories exists with Excel files:")
+        print("Please ensure one of these directories exists with data files (.xlsx, .xls, or .csv):")
         print("  - ./data/")
         print("  - ./sample_data/")
         print("  - ./input_data/")
@@ -99,7 +102,8 @@ def main():
     data_path, found_files = scan_data_directory(data_dir)
     
     if not found_files:
-        print(f"❌ Error: No Excel files found in {data_dir}")
+        print(f"❌ Error: No data files (.xlsx, .xls, or .csv) found in {data_dir}")
+        print(f"   Please ensure files like 'cohort', 'iop', 'diagnosis', or 'enc' exist in this directory")
         return 1
     
     print("Found data files:")
@@ -154,7 +158,7 @@ def main():
         
     except FileNotFoundError as e:
         print(f"❌ Error: Required file not found: {e}")
-        print("Please ensure all required Excel files are in the data directory.")
+        print("Please ensure all required data files (Excel or CSV) are in the data directory.")
         return 1
     except Exception as e:
         print(f"❌ Error during aggregation: {e}")

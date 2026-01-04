@@ -9,29 +9,40 @@ from .config_loader import load_config, get_file_configs, get_output_format
 def _read_data_file(file_path: Path) -> pd.DataFrame:
     """
     Read a data file (Excel or CSV) and return a DataFrame.
+    Works on both Windows and Unix systems.
     
     Args:
-        file_path: Path to the file
+        file_path: Path to the file (can be string or Path object)
         
     Returns:
         DataFrame with the file contents
         
     Raises:
         ValueError: If file format is not supported
+        FileNotFoundError: If file doesn't exist
     """
-    file_path = Path(file_path)
+    # Convert to Path object and resolve for cross-platform compatibility
+    file_path = Path(file_path).resolve()
     
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
     
+    # Get suffix in lowercase for case-insensitive matching
     suffix = file_path.suffix.lower()
     
-    if suffix in ['.xlsx', '.xls']:
-        return pd.read_excel(file_path)
-    elif suffix == '.csv':
-        return pd.read_csv(file_path)
-    else:
-        raise ValueError(f"Unsupported file format: {suffix}. Supported formats: .xlsx, .xls, .csv")
+    try:
+        if suffix in ['.xlsx', '.xls']:
+            return pd.read_excel(file_path)
+        elif suffix == '.csv':
+            # Read CSV with common settings that work on Windows and Unix
+            return pd.read_csv(file_path, encoding='utf-8')
+        else:
+            raise ValueError(f"Unsupported file format: {suffix}. Supported formats: .xlsx, .xls, .csv")
+    except UnicodeDecodeError:
+        # Try with different encoding if UTF-8 fails (common on Windows)
+        if suffix == '.csv':
+            return pd.read_csv(file_path, encoding='latin-1')
+        raise
 
 
 def _format_value(values: List, format_type: str) -> str:

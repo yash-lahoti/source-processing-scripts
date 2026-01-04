@@ -1,0 +1,47 @@
+# Patient Aggregation Configuration
+
+# Patient identifier column name (used to group records)
+patient_id_column: "patient_uid"
+
+# Input files configuration
+files:
+  - name: "iop"
+    file: "iop.xlsx"
+    columns:
+      - name: "od_iop"
+        type: "int"
+        aggregation: "list"
+      - name: "os_iop"
+        type: "int"
+        aggregation: "list"
+  
+  - name: "diagnosis"
+    file: "diagnosis.xlsx"
+    columns:
+      - name: "source_severity"
+        type: "str"
+        aggregation: "list"
+      - name: "code"
+        type: "str"
+        aggregation: "list"
+      - name: "short_desc"
+        type: "str"
+        aggregation: "list"
+  
+  - name: "enc"
+    file: "enc.xlsx"
+    columns:
+      - name: "bp_systolic"
+        type: "int"
+        aggregation: "list"
+      - name: "bp_diastolic"
+        type: "int"
+        aggregation: "list"
+      - name: "pulse"
+        type: "int"
+        aggregation: "list"
+
+# Output configuration
+output:
+  format: "json_array"  # Options: json_array, comma_separated, pipe_separated
+

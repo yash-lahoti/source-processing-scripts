@@ -1,0 +1,57 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patient-aggregator-yashlahoti"
+version = "0.1.0"
+description = "A configurable Python package to aggregate patient data from multiple Excel files into a single CSV file"
+readme = "README.md"
+requires-python = ">=3.8"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+authors = [
+    {name = "Yash Lahoti", email = "yash.lahoti@icahn.mssm.edu"}
+]
+keywords = ["patient", "aggregation", "excel", "csv", "medical", "data"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "pandas>=1.5.0",
+    "openpyxl>=3.0.0",
+    "pyyaml>=6.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=22.0",
+    "flake8>=4.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yashlahoti/patient-aggregator"
+Documentation = "https://github.com/yashlahoti/patient-aggregator#readme"
+Repository = "https://github.com/yashlahoti/patient-aggregator"
+Issues = "https://github.com/yashlahoti/patient-aggregator/issues"
+
+[project.scripts]
+aggregate-patients = "patient_aggregator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["patient_aggregator*"]
+
+[tool.setuptools.package-data]
+patient_aggregator = ["*.yaml", "*.yml"]

@@ -73,3 +73,112 @@ filtering:
       min_count: 1
       description: "At least one IOP measurement from either eye"
 
+# Feature engineering configuration
+features:
+  enabled: true
+  compute_means: true
+  compute_derived: true
+  compute_variability: true
+  
+  # Columns to compute means for
+  mean_columns:
+    - pulse
+    - od_iop
+    - os_iop
+    - bp_systolic
+    - bp_diastolic
+  
+  # Derived features configuration
+  derived_features:
+    map:
+      formula: "bp_diastolic_mean + (1/3) * (bp_systolic_mean - bp_diastolic_mean)"
+      description: "Mean Arterial Pressure"
+    mopp_od:
+      formula: "(2/3) * map - od_iop_mean"
+      description: "Mean Ocular Perfusion Pressure OD"
+    mopp_os:
+      formula: "(2/3) * map - os_iop_mean"
+      description: "Mean Ocular Perfusion Pressure OS"
+    sopp_od:
+      formula: "bp_systolic_mean - od_iop_mean"
+      description: "Systolic Ocular Perfusion Pressure OD"
+    sopp_os:
+      formula: "bp_systolic_mean - os_iop_mean"
+      description: "Systolic Ocular Perfusion Pressure OS"
+    dopp_od:
+      formula: "bp_diastolic_mean - od_iop_mean"
+      description: "Diastolic Ocular Perfusion Pressure OD"
+    dopp_os:
+      formula: "bp_diastolic_mean - os_iop_mean"
+      description: "Diastolic Ocular Perfusion Pressure OS"
+
+# Stratified EDA configuration
+stratified_eda:
+  enabled: true
+  stratification_column: "source_severity"  # Column to group by
+  output_subdirectory: "stratified_plots"  # Subdirectory in plots/
+  
+  # Group ordering configuration
+  group_order:
+    - mild
+    - moderate
+    - severe
+    - unspecified
+    - indeterminate
+  # Groups will be displayed in this order in all plots
+  
+  # Features to plot by group
+  features_to_plot:
+    - pulse_mean
+    - od_iop_mean
+    - os_iop_mean
+    - bp_systolic_mean
+    - bp_diastolic_mean
+    - map
+    - mopp_od
+    - mopp_os
+    - sopp_od
+    - sopp_os
+    - dopp_od
+    - dopp_os
+  
+  # Variability features to plot
+  variability_features:
+    - pulse_std
+    - od_iop_std
+    - os_iop_std
+    - bp_systolic_std
+    - bp_diastolic_std
+  
+  # Statistical testing configuration
+  statistical_tests:
+    enabled: true
+    tests:
+      - name: "t-test"
+        description: "Student's t-test (parametric, 2 groups)"
+        use_for: ["2_groups"]
+      - name: "mannwhitney"
+        description: "Mann-Whitney U test (non-parametric, 2 groups)"
+        use_for: ["2_groups", "non_parametric"]
+      - name: "anova"
+        description: "One-way ANOVA (parametric, 3+ groups)"
+        use_for: ["3plus_groups"]
+      - name: "kruskal"
+        description: "Kruskal-Wallis test (non-parametric, 3+ groups)"
+        use_for: ["3plus_groups", "non_parametric"]
+    
+    # Auto-select test based on group count and data distribution
+    auto_select: true
+    
+    # Significance levels for asterisks
+    significance_levels:
+      "*": 0.05
+      "**": 0.01
+      "***": 0.001
+    
+    # Display options
+    display:
+      show_asterisks: true
+      show_numeric: true
+      show_brackets: true  # Show brackets connecting groups being compared
+

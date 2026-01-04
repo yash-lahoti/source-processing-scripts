@@ -197,6 +197,19 @@ def main():
                         print(f"✓ Subset file already exists: {subset_file.name}")
                         print(f"  Subset: {len(subset_df)} patients")
                     
+                    # Apply feature engineering
+                    from patient_aggregator.config_loader import get_feature_config
+                    from patient_aggregator.features import engineer_features
+                    
+                    feature_config = get_feature_config(config)
+                    if feature_config.get('enabled', False):
+                        subset_df = engineer_features(subset_df, feature_config)
+                        
+                        # Save enhanced DataFrame
+                        features_file = output_dir / "aggregated_patients_with_features.csv"
+                        subset_df.to_csv(features_file, index=False)
+                        print(f"✓ Features computed and saved: {features_file.name}")
+                    
                     # Use subset for visualizations
                     visualization_file = subset_file
                     print(f"\n📊 Using subset for EDA: {visualization_file.name}")
@@ -218,6 +231,22 @@ def main():
                 # Save plots in output directory
                 plots_dir = output_dir / "plots"
                 visualize_aggregated_data(str(visualization_file), str(plots_dir))
+                
+                # Generate stratified EDA plots if enabled
+                if config_path.exists():
+                    from patient_aggregator.config_loader import get_stratified_eda_config
+                    from patient_aggregator.stratified_eda import create_stratified_plots
+                    
+                    stratified_config = get_stratified_eda_config(config)
+                    
+                    # Use features DataFrame if available
+                    features_file = output_dir / "aggregated_patients_with_features.csv"
+                    if features_file.exists():
+                        df_for_strat = pd.read_csv(features_file)
+                    else:
+                        df_for_strat = pd.read_csv(visualization_file)
+                    
+                    create_stratified_plots(df_for_strat, stratified_config, plots_dir)
             except Exception as e:
                 print(f"\n⚠ Warning: Could not generate visualizations: {e}")
                 print("Aggregation completed successfully, but visualizations were skipped.")

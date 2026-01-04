@@ -43,3 +43,25 @@ def get_filter_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get filter configuration from config."""
     return config.get('filtering', {})
 
+
+def get_feature_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get feature engineering configuration from config."""
+    return config.get('features', {})
+
+
+def get_stratified_eda_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get stratified EDA configuration from config."""
+    return config.get('stratified_eda', {})
+
+
+def get_group_order(config: Dict[str, Any]) -> List[str]:
+    """Get group order from stratified EDA configuration."""
+    stratified_config = config.get('stratified_eda', {})
+    return stratified_config.get('group_order', [])
+
+
+def get_statistical_test_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get statistical test configuration from config."""
+    stratified_config = config.get('stratified_eda', {})
+    return stratified_config.get('statistical_tests', {})
+

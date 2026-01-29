@@ -85,3 +85,5 @@ df.to_csv('data.csv', index=False)
 - Both formats produce identical aggregation results
 - The output is always a CSV file regardless of input format
 
+
+

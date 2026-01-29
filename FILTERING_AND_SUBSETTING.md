@@ -178,3 +178,5 @@ Or delete the `aggregated_patients.csv` file and rerun.
 - Empty arrays `[]` or missing values are treated as 0 values
 - Group requirements count total values across all columns in the group
 
+
+

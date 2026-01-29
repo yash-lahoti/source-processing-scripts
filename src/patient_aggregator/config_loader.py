@@ -65,6 +65,15 @@ def get_group_order(config: Dict[str, Any]) -> List[str]:
     return stratified_config.get('group_order', [])
 
 
+def get_severity_prescription_order(config: Dict[str, Any]) -> List[str]:
+    """Get severity prescription order (worst first) for assigning one severity per patient."""
+    stratified_config = config.get('stratified_eda', {})
+    return stratified_config.get(
+        'severity_prescription_order',
+        ['severe', 'moderate', 'mild', 'unspecified', 'indeterminate']
+    )
+
+
 def get_statistical_test_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get statistical test configuration from config."""
     stratified_config = config.get('stratified_eda', {})

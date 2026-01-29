@@ -3,6 +3,12 @@
 # Patient identifier column name (used to group records)
 patient_id_column: "patient_uid"
 
+# Cohort analysis (for run_cohort_analysis.py): compare patient_uid vs pat_mrn, unique counts by site
+cohort_analysis:
+  cohort_file: "cohort"  # Base name; .xlsx, .csv, .xls auto-detected
+  site_id_column: "site_id"
+  mrn_column: "pat_mrn"
+
 # Input files configuration
 # Supported formats: .xlsx, .xls, .csv
 # The system will automatically detect the file format
@@ -205,7 +211,16 @@ stratified_eda:
     - unspecified
     - indeterminate
   # Groups will be displayed in this order in all plots
-  
+
+  # Severity prescription order (worst first): used to assign one severity per patient
+  # when multiple values exist; first match in this order is the prescribed severity.
+  severity_prescription_order:
+    - severe
+    - moderate
+    - mild
+    - unspecified
+    - indeterminate
+
   # Features to plot by group
   features_to_plot:
     - pulse_mean

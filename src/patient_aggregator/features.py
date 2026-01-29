@@ -65,7 +65,12 @@ def _convert_to_numeric(values: List) -> np.ndarray:
     if not values:
         return np.array([])
     numeric_values = pd.to_numeric(values, errors='coerce')
-    return numeric_values[~pd.isna(numeric_values)].values
+    # Convert to numpy array and filter NaNs
+    if isinstance(numeric_values, pd.Series):
+        return numeric_values[~pd.isna(numeric_values)].values
+    else:
+        # Already a numpy array
+        return numeric_values[~pd.isna(numeric_values)]
 
 
 def _safe_eval_formula(formula: str, df: pd.DataFrame, allowed_columns: List[str]) -> Optional[pd.Series]:
@@ -127,6 +132,8 @@ def compute_patient_means(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
     """
     df = df.copy()
     
+    tqdm.write(f"  Computing means for {len(columns)} columns...")
+    
     for col in tqdm(columns, desc="Computing means", leave=False, unit="col"):
         if col not in df.columns:
             tqdm.write(f"  ⚠ Warning: Column '{col}' not found, skipping")
@@ -134,17 +141,53 @@ def compute_patient_means(df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
         
         mean_col = f"{col}_mean"
         
+        # Track statistics
+        total_patients = len(df)
+        patients_with_data = df[col].notna().sum()
+        stats = {'successful_means': 0, 'failed_parsing': 0, 'failed_numeric': 0, 'empty_arrays': 0}
+        
         def compute_mean(value):
             """Parse once, convert to numeric, then compute mean."""
             parsed, success = parse_json_array(value)
             if not parsed:
+                if pd.isna(value) or value == '':
+                    stats['empty_arrays'] += 1
+                else:
+                    stats['failed_parsing'] += 1
                 return np.nan
+            
             numeric_values = _convert_to_numeric(parsed)
             if len(numeric_values) == 0:
+                stats['failed_numeric'] += 1
                 return np.nan
+            
+            stats['successful_means'] += 1
             return np.mean(numeric_values)
         
         df[mean_col] = df[col].apply(compute_mean)
+        
+        # Extract stats after computation
+        successful_means = stats['successful_means']
+        failed_parsing = stats['failed_parsing']
+        failed_numeric = stats['failed_numeric']
+        empty_arrays = stats['empty_arrays']
+        
+        # Log statistics
+        final_non_null = df[mean_col].notna().sum()
+        tqdm.write(f"    {mean_col}:")
+        tqdm.write(f"      Input: {patients_with_data}/{total_patients} patients have data in {col}")
+        tqdm.write(f"      Output: {final_non_null}/{total_patients} patients have computed mean ({100*final_non_null/total_patients:.1f}%)")
+        if successful_means > 0:
+            tqdm.write(f"      Successfully computed: {successful_means}")
+        if failed_parsing > 0:
+            tqdm.write(f"      Failed parsing: {failed_parsing}")
+        if failed_numeric > 0:
+            tqdm.write(f"      Failed numeric conversion: {failed_numeric}")
+        if empty_arrays > 0:
+            tqdm.write(f"      Empty/missing values: {empty_arrays}")
+        if final_non_null < patients_with_data:
+            data_lost = patients_with_data - final_non_null
+            tqdm.write(f"      ⚠ Data loss: {data_lost} patients lost ({100*data_lost/patients_with_data:.1f}% of those with data)")
     
     return df
 
@@ -164,6 +207,8 @@ def compute_variability(df: pd.DataFrame, columns: List[str], ddof: int = 1) -> 
     """
     df = df.copy()
     
+    tqdm.write(f"  Computing variability (std) for {len(columns)} columns (ddof={ddof})...")
+    
     for col in tqdm(columns, desc="Computing variability", leave=False, unit="col"):
         if col not in df.columns:
             tqdm.write(f"  ⚠ Warning: Column '{col}' not found, skipping")
@@ -171,15 +216,50 @@ def compute_variability(df: pd.DataFrame, columns: List[str], ddof: int = 1) -> 
         
         std_col = f"{col}_std"
         
+        # Track statistics
+        total_patients = len(df)
+        patients_with_data = df[col].notna().sum()
+        stats = {'successful_std': 0, 'insufficient_values': 0, 'failed_parsing': 0, 'failed_numeric': 0}
+        
         def compute_std(values_str):
             """Parse, convert to numeric, then compute sample std."""
-            parsed, _ = parse_json_array(values_str)
+            parsed, success = parse_json_array(values_str)
+            if not parsed:
+                stats['failed_parsing'] += 1
+                return np.nan
+            
             numeric_values = _convert_to_numeric(parsed)
             if len(numeric_values) < 2:
+                stats['insufficient_values'] += 1
                 return np.nan  # Need at least 2 values for std
+            
+            stats['successful_std'] += 1
             return np.std(numeric_values, ddof=ddof)
         
         df[std_col] = df[col].apply(compute_std)
+        
+        # Extract stats after computation
+        successful_std = stats['successful_std']
+        insufficient_values = stats['insufficient_values']
+        failed_parsing = stats['failed_parsing']
+        failed_numeric = stats['failed_numeric']
+        
+        # Log statistics
+        final_non_null = df[std_col].notna().sum()
+        tqdm.write(f"    {std_col}:")
+        tqdm.write(f"      Input: {patients_with_data}/{total_patients} patients have data in {col}")
+        tqdm.write(f"      Output: {final_non_null}/{total_patients} patients have computed std ({100*final_non_null/total_patients:.1f}%)")
+        if successful_std > 0:
+            tqdm.write(f"      Successfully computed: {successful_std}")
+        if insufficient_values > 0:
+            tqdm.write(f"      Insufficient values (<2): {insufficient_values}")
+        if failed_parsing > 0:
+            tqdm.write(f"      Failed parsing: {failed_parsing}")
+        if failed_numeric > 0:
+            tqdm.write(f"      Failed numeric conversion: {failed_numeric}")
+        if final_non_null < patients_with_data:
+            data_lost = patients_with_data - final_non_null
+            tqdm.write(f"      ⚠ Data loss: {data_lost} patients lost ({100*data_lost/patients_with_data:.1f}% of those with data)")
     
     return df
 
@@ -296,7 +376,7 @@ def compute_derived_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.Dat
     return df
 
 
-def engineer_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
+def engineer_features(df: pd.DataFrame, config: Dict[str, Any]) -> Tuple[pd.DataFrame, Dict[str, Any]]:
     """
     Main function to orchestrate feature engineering.
     
@@ -305,10 +385,10 @@ def engineer_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
         config: Feature engineering configuration
         
     Returns:
-        Enhanced DataFrame with all computed features
+        Tuple of (Enhanced DataFrame with all computed features, cleaning statistics)
     """
     if not config.get('enabled', False):
-        return df
+        return df, {}
     
     # Reset parse failure tracking
     global _parse_failures
@@ -364,5 +444,5 @@ def engineer_features(df: pd.DataFrame, config: Dict[str, Any]) -> pd.DataFrame:
         tqdm.write(f"  New columns: {', '.join(sorted(new_columns))}")
     tqdm.write("")
     
-    return df
+    return df, cleaning_stats
 
